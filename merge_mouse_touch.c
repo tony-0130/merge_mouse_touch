@@ -106,7 +106,7 @@ int main() {
 
     struct input_event ev;
     fd_set fds;
-    int max_fd = (fd_mouse > fd_touch ? fd_mouse : fd_touch) + 1;
+    int maxfd = (fd_mouse > fd_touch ? fd_mouse : fd_touch) + 1;
     int x = SCREEN_X / 2;
     int y = SCREEN_Y / 2;
 
@@ -160,7 +160,7 @@ int main() {
         }
     }
 
-    ioctl(fd_uinput, UI_DEV_DESTORY);
+    ioctl(fd_uinput, UI_DEV_DESTROY);
     close(fd_mouse);
     close(fd_touch);
     close(fd_uinput);
