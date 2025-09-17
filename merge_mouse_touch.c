@@ -93,8 +93,8 @@ void emit(int fd, int type, int code, int val) {
 }
 
 int main() {
-    int fd_mouse = open("dev/input/event2", O_RDONLY);
-    int fd_touch = open("dev/input/event5", O_RDONLY);
+    int fd_mouse = open("/dev/input/event2", O_RDONLY);
+    int fd_touch = open("/dev/input/event5", O_RDONLY);
 
     if (fd_mouse < 0 || fd_touch < 0) {
         perror("open input device");
