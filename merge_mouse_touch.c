@@ -60,14 +60,18 @@ int setup_uinput() {
     ioctl(fd, UI_SET_EVBIT, EV_KEY);
     ioctl(fd, UI_SET_KEYBIT, BTN_TOUCH);
     ioctl(fd, UI_SET_EVBIT, EV_ABS);
+
     ioctl(fd, UI_SET_ABSBIT, ABS_X);
     ioctl(fd, UI_SET_ABSBIT, ABS_Y);
+
+    // Set device as direct input (touchscreen-like behavior)
+    ioctl(fd, UI_SET_PROPBIT, INPUT_PROP_DIRECT);
 
 #if defined(UI_ABS_SETUP)   // kernel version >= 5.6, support the UI_ABS_SETUP
     struct uinput_abs_setup abs_setup;
     memset(&abs_setup, 0, sizeof(abs_setup));
 
-    abs_setup.code - ABS_X;
+    abs_setup.code = ABS_X;
     abs_setup.absinfo.minimum = 0;
     abs_setup.absinfo.maximum = SCREEN_X;
     ioctl(fd, UI_ABS_SETUP, &abs_setup);
@@ -76,6 +80,7 @@ int setup_uinput() {
     abs_setup.absinfo.minimum = 0;
     abs_setup.absinfo.maximum = SCREEN_Y;
     ioctl(fd, UI_ABS_SETUP, &abs_setup);
+
 
     struct uinput_setup usetup;
     memset(&usetup, 0, sizeof(usetup));
@@ -100,6 +105,7 @@ int setup_uinput() {
     uidev.absmin[ABS_Y] = 0;
     uidev.absmax[ABS_Y] = SCREEN_Y;
 
+
     if (write(fd, &uidev, sizeof(uidev)) < 0) {
         perror("write uinput_user_dev");
         exit(1);
@@ -123,6 +129,7 @@ void emit(int fd, int type, int code, int val) {
     ie.code = code;
     ie.value = val;
     gettimeofday(&ie.time, NULL);
+
     if (write(fd, &ie, sizeof(ie)) < 0) {
         perror("write event");
     }
