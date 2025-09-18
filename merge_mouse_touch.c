@@ -13,10 +13,12 @@
 #define SCREEN_Y    1080
 
 // The device name (correspond to the "Name=" in the /proc/bus/input/devices)
-#define TARGET_MOUSE    "ThinkPad USB Laser Mouse"
+#define TARGET_MOUSE    "Mouse"
 #define TARGET_TOUCH    "eGalaxTouch Virtual Device for Touch"
 
-int find_device_event(const char *target_name, char *event_path, size_t len) {
+// Search for an input device in /proc/bus/input/devices by keyword
+// Returns the full path (/dev/input/eventX) if found
+int find_device_event(const char *keyword, char *event_path, size_t len) {
     FILE *f = fopen("/proc/bus/input/devices", "r");
     if (!f) {
         perror("fopen /proc/bus/input/devices");
@@ -26,13 +28,13 @@ int find_device_event(const char *target_name, char *event_path, size_t len) {
     char line[512];
     int found = 0;
     while (fgets(line, sizeof(line), f)) {
-        if (strstr(line, "Name=") && strstr(line, target_name)) {
-            found = 1;
+        if (strstr(line, "Name=") && strstr(line, keyword)) {
+            found = 1; // Found device name containing the keyword
         } else if (found && strstr(line, "Handlers=")) {
             char *p = strstr(line, "event");
             if (p) {
                 char event_name[32];
-                sscanf(p, "%31s", event_name); // just get the "eventX", ignore the space behind
+                sscanf(p, "%31s", event_name); // Just get the "eventX", ignore the space behind
                 snprintf(event_path, len, "/dev/input/%s", event_name);  
                 fclose(f);
                 return 0;
@@ -43,9 +45,10 @@ int find_device_event(const char *target_name, char *event_path, size_t len) {
     }
 
     fclose(f);
-    return -1; // haven't found
+    return -1; // Not found
 }
 
+// Create a virtual uinput device that acts like a touchscreen
 int setup_uinput() {
     int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
     if (fd < 0) {
@@ -60,8 +63,7 @@ int setup_uinput() {
     ioctl(fd, UI_SET_ABSBIT, ABS_X);
     ioctl(fd, UI_SET_ABSBIT, ABS_Y);
 
-#if defined(UI_ABS_SETUP)
-    // kernel version >= 5.6, support the UI_ABS_SETUP
+#if defined(UI_ABS_SETUP)   // kernel version >= 5.6, support the UI_ABS_SETUP
     struct uinput_abs_setup abs_setup;
     memset(&abs_setup, 0, sizeof(abs_setup));
 
@@ -86,8 +88,7 @@ int setup_uinput() {
         perror("UI_DEV_SETUP");
         exit(1);
     }
-#else
-    // kernel version < 5.6, using the struct uinput_user_dev
+#else   // kernel version < 5.6, using the struct uinput_user_dev
     struct uinput_user_dev uidev;
     memset(&uidev, 0, sizeof(uidev));
     snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "merged-touch");
@@ -113,6 +114,7 @@ int setup_uinput() {
     return fd;
 }
 
+// Emit a single input_event into uinput device
 void emit(int fd, int type, int code, int val) {
     struct input_event ie;
     memset(&ie, 0, sizeof(ie));
@@ -129,11 +131,12 @@ void emit(int fd, int type, int code, int val) {
 int main() {
     char mouse_event[128], touch_event[128];
 
+    // Find mouse device (using TARGET_TOUCH)
     if (find_device_event(TARGET_MOUSE, mouse_event, sizeof(mouse_event)) < 0) {
         fprintf(stderr, "Can't find the mouse device : %s\n", TARGET_MOUSE);
         return 1;
     }
-
+    // Find touchscreen device (using TARGET_TOUCH)
     if (find_device_event(TARGET_TOUCH, touch_event, sizeof(touch_event)) < 0) {
         fprintf(stderr, "Can't find the touch device : %s\n", TARGET_TOUCH);
         return 1;
@@ -169,7 +172,7 @@ int main() {
             break;
         }
 
-        // Mouse input event process
+        // Mouse events -> convert into touch events
         if (FD_ISSET(fd_mouse, &fds)) {
             if (read(fd_mouse, &ev, sizeof(ev)) == sizeof(ev)) {
                 if (ev.type == EV_REL) {
@@ -186,12 +189,12 @@ int main() {
                 }
 
                 if (ev.type == EV_KEY && ev.code == BTN_LEFT) {
-                    if (ev.value == 1) {
+                    if (ev.value == 1) { // Press
                         emit(fd_uinput, EV_ABS, ABS_X, x);
                         emit(fd_uinput, EV_ABS, ABS_Y, y);
                         emit(fd_uinput, EV_KEY, BTN_TOUCH, 1);
                         emit(fd_uinput, EV_SYN, SYN_REPORT, 0);
-                    } else if (ev.value == 0) {
+                    } else if (ev.value == 0) { // Release
                         emit(fd_uinput, EV_KEY, BTN_TOUCH, 0);
                         emit(fd_uinput, EV_SYN, SYN_REPORT, 0);
                     }
@@ -199,7 +202,7 @@ int main() {
             }
         }
 
-        // Actually touch event triggered
+        // Touch events -> Forward events directly
         if (FD_ISSET(fd_touch, &fds)) {
             if (read(fd_touch, &ev, sizeof(ev)) == sizeof(ev)) {
                 emit(fd_uinput, ev.type, ev.code, ev.value);
