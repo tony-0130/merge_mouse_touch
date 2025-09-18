@@ -12,6 +12,40 @@
 #define SCREEN_X    1920
 #define SCREEN_Y    1080
 
+// The device name (correspond to the "Name=" in the /proc/bus/input/devices)
+#define TARGET_MOUSE    "ThinkPad USB Laser Mouse"
+#define TARGET_TOUCH    "eGalaxTouch Virtual Device for Touch"
+
+int find_device_event(const char *target_name, char *event_path, size_t len) {
+    FILE *f = fopen("/proc/bus/input/devices", "r");
+    if (!f) {
+        perror("fopen /proc/bus/input/devices");
+        return -1;
+    }
+
+    char line[512];
+    int found = 0;
+    while (fgets(line, sizeof(line), f)) {
+        if (strstr(line, "Name=") && strstr(line, target_name)) {
+            found = 1;
+        } else if (found && strstr(line, "Handlers=")) {
+            char *p = strstr(line, "event");
+            if (p) {
+                char event_name[32];
+                sscanf(p, "%31s", event_name); // just get the "eventX", ignore the space behind
+                snprintf(event_path, len, "/dev/input/%s", event_name);  
+                fclose(f);
+                return 0;
+            }
+
+            found = 0; // haven't found event, reset
+        }
+    }
+
+    fclose(f);
+    return -1; // haven't found
+}
+
 int setup_uinput() {
     int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
     if (fd < 0) {
@@ -93,8 +127,23 @@ void emit(int fd, int type, int code, int val) {
 }
 
 int main() {
-    int fd_mouse = open("/dev/input/event2", O_RDONLY);
-    int fd_touch = open("/dev/input/event5", O_RDONLY);
+    char mouse_event[128], touch_event[128];
+
+    if (find_device_event(TARGET_MOUSE, mouse_event, sizeof(mouse_event)) < 0) {
+        fprintf(stderr, "Can't find the mouse device : %s\n", TARGET_MOUSE);
+        return 1;
+    }
+
+    if (find_device_event(TARGET_TOUCH, touch_event, sizeof(touch_event)) < 0) {
+        fprintf(stderr, "Can't find the touch device : %s\n", TARGET_TOUCH);
+        return 1;
+    }
+
+    printf("Mouse : '%s'\n", mouse_event);
+    printf("Touch : %s\n", touch_event);
+
+    int fd_mouse = open(mouse_event, O_RDONLY);
+    int fd_touch = open(touch_event, O_RDONLY);
 
     if (fd_mouse < 0 || fd_touch < 0) {
         perror("open input device");
