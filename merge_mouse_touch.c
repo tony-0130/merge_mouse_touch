@@ -149,7 +149,7 @@ int main() {
         return 1;
     }
 
-    printf("Mouse : '%s'\n", mouse_event);
+    printf("Mouse : %s\n", mouse_event);
     printf("Touch : %s\n", touch_event);
 
     int fd_mouse = open(mouse_event, O_RDONLY);
