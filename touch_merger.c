@@ -161,7 +161,7 @@ int main() {
     }
 
     int fd_uinput = setup_uinput();
-    printf("Create merge-touch device succeed!\n");
+    printf("Create merged touch device succeed!\n");
 
     struct input_event ev;
     fd_set fds;

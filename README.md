@@ -1,5 +1,5 @@
-# Merge Mouse Touch
-Merges mouse and touch input events into one virtual touchscreen device.
+# False Touch Detector
+A tool for detecting false touch events by merging mouse and touch input into one virtual touchscreen device, allowing comparison between expected (mouse) and actual (touch) input to identify phantom or erroneous touch events.
 
 ## Compilation (for Yocto)
 
@@ -10,20 +10,20 @@ $ source /opt/fsl-imx-wayland/5.15-kirkstone/environment-setup-armv8a-poky-linux
 
 ### Make
 ```shell
-$ $CC merge_mouse_touch.c -o merge_mouse_touch
+$ $CC touch_merger.c -o touch_merger
 ```
 
 ## How to use
 
 ### 1. Open a virtual merged touch device
-Run `sudo ./merge_mouse_touch &` to create a virtual merged touch device in background.
+Run `sudo ./touch_merger &` to create a virtual merged touch device in background.
 ```
-$ sudo ./merge_mouse_touch &
+$ sudo ./touch_merger &
 [1] 674
 [ 6654.171584] input: merged-touch as /devices/virtual/input/input20
 Mouse : '/dev/input/event2'
 Touch : /dev/input/event5
-Create merge-touch device succeed!
+Create merged touch device succeed!
 ```
 
 After the previous step, if you run the `evtest` command now, you should see a new device named 'merged-touch'.
@@ -42,14 +42,31 @@ Available devices:
 Select the device event number [0-7]:
 ```
 
-### 2. Event monitoring
-Now you can use the `evtest /dev/input/event7` for monitor the button event and its coordinate information.
+### 2. Event monitoring and logging
+Record events to a log file for analysis:
+```shell
+$ evtest /dev/input/event7 | tee -a log.txt
+```
 
-Or using `evtest /dev/input/event7 | tee -a log.txt` to monitoring the status and save them into a logfile at same time.
-
-Now you can try to click the left mouse button or press the touch panel to see all events on this merged touch device.
+This will monitor the merged device and save all events to `log.txt`. Now you can:
+- Click the left mouse button (expected touches)
+- Observe the touchscreen for any unexpected touches (ghost/false touches)
 
 **Note:** Coordinates (ABS_X, ABS_Y) only appear when the position changes. If you click at the same location multiple times, you'll only see BTN_TOUCH events without coordinates - this is normal touchscreen behavior.
+
+### 3. Analyze for false touches
+After recording events, use the summary script to count total touch events:
+```shell
+$ bash touch_log_summary.sh
+=====================
+Total touches: 42
+=====================
+```
+
+**False Touch Detection:**
+- Compare the total touch count with your actual mouse clicks
+- If the count is higher than expected, ghost/false touches have occurred
+- Review `log.txt` to identify when unexpected touch events happened
 
 ```shell
 $ evtest /dev/input/event7
